@@ -24,14 +24,15 @@ def rotate(vector, angle):
 
 class Car:
     # TODO: this should extend sprite
-    def __init__(self):
+    def __init__(self, center=None, angle=0, color=(0, 200, 0), speed=5):
         self.width = 40
         self.length = 70
-        self.center = np.array([80, 80], dtype='float64')
-        self.angle = -60
-        self.color = (0, 180, 0)
-        self.speed = 10
+        self.center = center if not center is None else np.array([80, 80], dtype='float64')
+        self.angle = angle
+        self.color = color
+        self.speed = speed
         self.turn = 0
+
         self.ACC = 0.1
         self.BRAKE = 0.3
         self.TURN_SPEED = 0.05
@@ -41,18 +42,18 @@ class Car:
         self.STRAIGHTENING = 0.95
 
         self.shape = np.array([
-            [-0.5, -0.2],
-            [0.5, -0.2],
-            [0.5, 0.8],
-            [-0.5, 0.8]
-        ]) * [self.width, self.length]
+            [0.8, -0.5],
+            [0.8, 0.5],
+            [-0.2, 0.5],
+            [-0.2, -0.5]
+        ]) * [self.length, self.width]
 
     def contains(self, point):
         # TODO: potentially redo this to utilize SAT like collision
         point = np.array(point, dtype='float64')
         point -= self.center
         point = rotate(point, -self.angle)
-        point += pygame.math.Vector2(0.5 * self.width, 0.2 * self.length)
+        point += pygame.math.Vector2(0.2 * self.length, 0.5 * self.width)
         return point[0] > 0 and point[0] < self.width and point[1] > 0 and point[1] < self.length
 
     def getEdges(self):
@@ -113,18 +114,49 @@ class Car:
                     self.turn = self.MAX_TURN
 
         self.angle += self.turn * self.speed
-        velocity = rotate(np.array([0, self.speed]), self.angle)
+        velocity = rotate(np.array([self.speed, 0]), self.angle)
         self.center += velocity
 
     def draw(self, surface):
         points = rotate(self.shape, self.angle) + self.center
         pygame.draw.polygon(surface, self.color, points)
         if DEBUG:
-            direction = rotate(np.array([0, 1]), self.angle)
+            direction = rotate(np.array([1, 0]), self.angle)
             velocity = self.speed * direction
             pygame.draw.line(surface, (255, 0, 255), self.center, self.center + 10 * velocity, 1)
             frontCenter = self.center + 0.6 * self.length * direction
             pygame.draw.line(surface, (255, 0, 255), frontCenter, frontCenter + 10 * rotate(direction, self.turn * 20), 3)
+
+class Road:
+    # TODO: this should extend sprite
+    def __init__(self, carList, color=(0, 0, 200)):
+        self.carList = carList
+        self.start = np.array([500, 100], dtype='float64')
+        self.angle = 0
+        self.length = 300
+        self.speed = 5
+        self.color = color
+        self.spawnMin = 200
+        self.spawnMax = 300
+        self.spawnTick = np.random.randint(self.spawnMin, self.spawnMax+1)
+        self.tickCount = 0
+        self.spawnPoint = self.start + rotate(np.array([-self.length, 0]), self.angle)
+        self.polygon = rotate(np.array([[0, -30], [0, 30], [-self.length, 30], [-self.length, -30]]), self.angle) + self.start
+        print(self.polygon)
+
+    def update(self):
+        self.tickCount += 1
+        if self.tickCount > self.spawnTick:
+            self.spawn()
+            self.tickCount = 0
+            self.spawnTick = np.random.randint(self.spawnMin, self.spawnMax+1)
+    
+    def draw(self, surface):
+        pygame.draw.polygon(surface, self.color, self.polygon, 2)
+    
+    def spawn(self):
+        # TODO: fix spawning/pushing bug?
+        self.carList.append(Car(self.spawnPoint, self.angle, self.color, self.speed))
 
 class IntersectionGame:
     def __init__(self):
@@ -132,7 +164,8 @@ class IntersectionGame:
         size = (800, 600)
         self.screen = pygame.display.set_mode(size)
         # TODO: this should be a sprite group
-        self.cars = [Car(), Car()]
+        self.cars = [Car(angle=40), Car(angle=60)]
+        self.roads = [Road(self.cars, (0, 0, 200))]
         self.selectedCar = None
         self.keys = {}
         self.mouse = [(0,0), 0, 0, 0, 0, 0, 0] #[pos, b1,b2,b3,b4,b5,b6]
@@ -171,12 +204,17 @@ class IntersectionGame:
                     car.update(self.keys)
                 else:
                     car.update()
+            
+            for road in self.roads:
+                road.update()
 
             # draw everything
             self.screen.fill((0, 0, 0))
 
             for car in self.cars:
                 car.draw(self.screen)
+            for road in self.roads:
+                road.draw(self.screen)
             
             # TODO move collision before screen clear when finished debugging
             if self.cars[0].collides(self.cars[1], self.screen):
