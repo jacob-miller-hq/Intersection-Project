@@ -16,7 +16,7 @@ import sys, math, pygame
 import numpy as np
 import numpy.linalg as la
 
-DEBUG = True
+DEBUG = False
 
 def rotate(vector, angle):
     angle = angle / 180 * math.pi
@@ -42,8 +42,10 @@ class Car:
         self.STRAIGHTENING = 0.95
 
         self.shape = np.array([
-            [0.8, -0.5],
-            [0.8, 0.5],
+            [0.75, -0.5],
+            [0.8, -0.4],
+            [0.8, 0.4],
+            [0.75, 0.5],
             [-0.2, 0.5],
             [-0.2, -0.5]
         ]) * [self.length, self.width]
@@ -62,7 +64,7 @@ class Car:
 
     # implemented the Separating Axis Theorem from here:
     # https://www.metanetsoftware.com/technique/tutorialA.html
-    # *Note: Only really works on convex shapes and needs more work to work with non-polygons
+    # *Note: Only really works on convex shapes and needs more effort to work with non-polygons
     def collides(self, o, surface=None):        
         allEdges = np.concatenate((self.getEdges(), o.getEdges()))
         vecs1 = rotate(self.shape, self.angle)
@@ -131,10 +133,10 @@ class Road:
     # TODO: this should extend sprite
     def __init__(self, carList, color=(0, 0, 200)):
         self.carList = carList
-        self.start = np.array([500, 100], dtype='float64')
-        self.angle = 0
+        self.start = np.array([500, 300], dtype='float64')
+        self.angle = 10
         self.length = 300
-        self.speed = 5
+        self.speed = 7
         self.color = color
         self.spawnMin = 200
         self.spawnMax = 300
@@ -156,7 +158,7 @@ class Road:
     
     def spawn(self):
         # TODO: fix spawning/pushing bug?
-        self.carList.append(Car(self.spawnPoint, self.angle, self.color, self.speed))
+        self.carList.append(Car(self.spawnPoint.copy(), self.angle, self.color, self.speed))
 
 class IntersectionGame:
     def __init__(self):
@@ -164,11 +166,12 @@ class IntersectionGame:
         size = (800, 600)
         self.screen = pygame.display.set_mode(size)
         # TODO: this should be a sprite group
-        self.cars = [Car(angle=40), Car(angle=60)]
+        self.cars = [Car(angle=80), Car(angle=100)]
         self.roads = [Road(self.cars, (0, 0, 200))]
         self.selectedCar = None
         self.keys = {}
         self.mouse = [(0,0), 0, 0, 0, 0, 0, 0] #[pos, b1,b2,b3,b4,b5,b6]
+        self.score = 0
 
     def gameLoop(self, fr=60):
         running = True
@@ -208,6 +211,12 @@ class IntersectionGame:
             for road in self.roads:
                 road.update()
 
+            for i in range(len(self.cars)):
+                for j in range(i+1, len(self.cars)):
+                    if (self.cars[i].collides(self.cars[j])):
+                        self.cars[i].color = (200, 0, 0)
+                        self.cars[j].color = (200, 0, 0)
+
             # draw everything
             self.screen.fill((0, 0, 0))
 
@@ -215,11 +224,10 @@ class IntersectionGame:
                 car.draw(self.screen)
             for road in self.roads:
                 road.draw(self.screen)
-            
-            # TODO move collision before screen clear when finished debugging
-            if self.cars[0].collides(self.cars[1], self.screen):
-                # print(self.cars[0].center)
-                pass
+
+            font = pygame.font.Font(None, 40)
+            textSurface = font.render("Score: {}".format(self.score), True, (255, 255, 255))
+            self.screen.blit(textSurface, (12, 12))
 
             pygame.display.flip()
 
