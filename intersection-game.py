@@ -22,6 +22,66 @@ def rotate(vector, angle):
     angle = angle / 180 * math.pi
     return np.dot(vector, [[math.cos(angle), math.sin(angle)], [-math.sin(angle), math.cos(angle)]])
 
+class Polygon:
+    def __init__(self, center=None, angle=0, color=(255, 255, 255)):
+        self.center = np.array(center, dtype='float64') if not center is None else np.array([80, 80], dtype='float64')
+        self.angle = angle
+        self.color = color
+
+        self.shape = np.array([
+            [-2, 1],
+            [-1, 2],
+            [1, 2],
+            [2, 1],
+            [2, -1],
+            [1, -2],
+            [-1, -2],
+            [-2, -1]
+        ])
+
+    def getPoints(self):
+        return rotate(self.shape, self.angle) + self.center
+
+    def getEdges(self):
+        points = self.getPoints()
+        return np.stack([points, np.roll(points, 1, axis=0)], axis=1)
+
+    # implemented the Separating Axis Theorem from here:
+    # https://www.metanetsoftware.com/technique/tutorialA.html
+    # *Note: Only really works on convex shapes and needs more effort to work with non-polygons
+    def collides(self, o, surface=None):        
+        allEdges = np.concatenate((self.getEdges(), o.getEdges()))
+        vecs1 = rotate(self.shape, self.angle)
+        vecs2 = rotate(o.shape, o.angle)
+        for edge in allEdges:
+            vec = edge[1] - edge[0]
+            vec /= la.norm(vec)
+            orthoVec = np.array([vec[1], -vec[0]])
+
+            projected1 = np.dot(vecs1, vec)
+            projected2 = np.dot(vecs2, vec)
+            projDist = np.dot(o.center - self.center, vec)
+
+            # display stuff
+            if DEBUG and surface != None:
+                midCenter = (self.center + o.center) / 2
+                axisCenter = midCenter - 200 * orthoVec
+                axis1 = axisCenter - projDist / 2 * vec
+                axis2 = axisCenter + projDist / 2 * vec
+                # print(vec, vec)
+                pygame.draw.line(surface, (100, 100, 100), midCenter, axisCenter, 1)
+                pygame.draw.line(surface, (100, 100, 100), axis1, axis2, 1)
+                pygame.draw.line(surface, (100, 100, 200), axis1 + projected1.min() * vec, axis1 + projected1.max() * vec, 7)
+                pygame.draw.line(surface, (100, 0, 100), axis2 + projected2.min() * vec, axis2 + projected2.max() * vec, 3)
+
+            if projDist > projected1.max() - projected2.min() or projDist < projected1.min() - projected2.max():
+                return False
+        return True
+
+    def draw(self, surface):
+        points = self.getPoints()
+        pygame.draw.polygon(surface, self.color, points)
+
 class Car:
     # TODO: this should extend sprite
     def __init__(self, center=None, angle=0, color=(0, 200, 0), speed=5):
@@ -129,7 +189,7 @@ class Car:
             frontCenter = self.center + 0.6 * self.length * direction
             pygame.draw.line(surface, (255, 0, 255), frontCenter, frontCenter + 10 * rotate(direction, self.turn * 20), 3)
 
-class Road:
+class FromRoad:
     # TODO: this should extend sprite
     def __init__(self, carList, color=(0, 0, 200)):
         self.carList = carList
@@ -144,7 +204,6 @@ class Road:
         self.tickCount = 0
         self.spawnPoint = self.start + rotate(np.array([-self.length, 0]), self.angle)
         self.polygon = rotate(np.array([[0, -30], [0, 30], [-self.length, 30], [-self.length, -30]]), self.angle) + self.start
-        print(self.polygon)
 
     def update(self):
         self.tickCount += 1
@@ -160,6 +219,23 @@ class Road:
         # TODO: fix spawning/pushing bug?
         self.carList.append(Car(self.spawnPoint.copy(), self.angle, self.color, self.speed))
 
+class ToRoad:
+    # TODO: this should extend sprite
+    def __init__(self, carList, color=(0, 0, 200)):
+        self.carList = carList
+        self.start = np.array([500, 300], dtype='float64')
+        self.angle = 10
+        self.length = 300
+        self.speed = 7
+        self.color = color
+        self.polygon = rotate(np.array([[0, -30], [0, 30], [-self.length, 30], [-self.length, -30]]), self.angle) + self.start
+
+    def update(self):
+        pass
+    
+    def draw(self, surface):
+        pygame.draw.polygon(surface, self.color, self.polygon, 2)
+
 class IntersectionGame:
     def __init__(self):
         self.clock = pygame.time.Clock()
@@ -167,7 +243,7 @@ class IntersectionGame:
         self.screen = pygame.display.set_mode(size)
         # TODO: this should be a sprite group
         self.cars = [Car(angle=80), Car(angle=100)]
-        self.roads = [Road(self.cars, (0, 0, 200))]
+        self.roads = [FromRoad(self.cars, (0, 0, 200))]
         self.selectedCar = None
         self.keys = {}
         self.mouse = [(0,0), 0, 0, 0, 0, 0, 0] #[pos, b1,b2,b3,b4,b5,b6]
