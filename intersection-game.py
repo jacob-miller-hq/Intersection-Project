@@ -23,6 +23,7 @@ def rotate(vector, angle):
     return np.dot(vector, [[math.cos(angle), math.sin(angle)], [-math.sin(angle), math.cos(angle)]])
 
 class Polygon:
+    # TODO: this should extend sprite?
     def __init__(self, center=None, angle=0, color=(255, 255, 255)):
         self.center = np.array(center, dtype='float64') if not center is None else np.array([80, 80], dtype='float64')
         self.angle = angle
@@ -83,7 +84,6 @@ class Polygon:
         pygame.draw.polygon(surface, self.color, points)
 
 class Car(Polygon):
-    # TODO: this should extend sprite
     def __init__(self, center=None, angle=0, color=(0, 200, 0), speed=5):
         Polygon.__init__(self, center, angle, color)
         self.width = 40
@@ -187,7 +187,6 @@ class Car(Polygon):
             pygame.draw.line(surface, (255, 0, 255), frontCenter, frontCenter + 10 * rotate(direction, self.turn * 20), 3)
 
 class FromRoad(Polygon):
-    # TODO: this should extend sprite
     def __init__(self, carList, color=(0, 0, 200)):
         Polygon.__init__(self, np.array([500, 300], dtype='float64'), 10, color)
         self.carList = carList
@@ -207,6 +206,7 @@ class FromRoad(Polygon):
             self.spawn()
             self.tickCount = 0
             self.spawnTick = np.random.randint(self.spawnMin, self.spawnMax+1)
+        return 0
     
     def draw(self, surface):
         points = self.getPoints()
@@ -217,7 +217,6 @@ class FromRoad(Polygon):
         self.carList.append(Car(self.spawnPoint.copy(), self.angle, self.color, self.speed))
 
 class ToRoad(Polygon):
-    # TODO: this should extend sprite
     def __init__(self, carList, color=(0, 0, 200)):
         Polygon.__init__(self, np.array([500, 500], dtype='float64'), -10, color)
         self.carList = carList
@@ -226,7 +225,14 @@ class ToRoad(Polygon):
         self.shape = np.array([[0, -30], [0, 30], [-self.length, 30], [-self.length, -30]])
 
     def update(self):
-        pass
+        total = 0
+        for car in self.carList:
+            if self.collides(car):
+                self.carList.remove(car)
+                total += 1
+        return total
+                
+
     
     def draw(self, surface):
         points = self.getPoints()
@@ -237,7 +243,7 @@ class IntersectionGame:
         self.clock = pygame.time.Clock()
         size = (800, 600)
         self.screen = pygame.display.set_mode(size)
-        # TODO: this should be a sprite group
+        # TODO: these should be sprite groups
         self.cars = [Car(angle=80), Car(angle=100)]
         self.roads = [FromRoad(self.cars, (0, 0, 200)), ToRoad(self.cars, (0, 200, 0))]
         self.selectedCar = None
@@ -281,7 +287,7 @@ class IntersectionGame:
                     car.update()
             
             for road in self.roads:
-                road.update()
+                self.score += road.update()
 
             for i in range(len(self.cars)):
                 for j in range(i+1, len(self.cars)):
@@ -302,6 +308,7 @@ class IntersectionGame:
             self.screen.blit(textSurface, (12, 12))
 
             pygame.display.flip()
+        
 
 if __name__ == "__main__":
     pygame.init()
