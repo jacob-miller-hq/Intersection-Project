@@ -29,14 +29,14 @@ class Polygon:
         self.color = color
 
         self.shape = np.array([
-            [-2, 1],
-            [-1, 2],
-            [1, 2],
-            [2, 1],
-            [2, -1],
-            [1, -2],
-            [-1, -2],
-            [-2, -1]
+            [-20, 10],
+            [-10, 20],
+            [10, 20],
+            [20, 10],
+            [20, -10],
+            [10, -20],
+            [-10, -20],
+            [-20, -10]
         ])
 
     def getPoints(self):
@@ -82,14 +82,12 @@ class Polygon:
         points = self.getPoints()
         pygame.draw.polygon(surface, self.color, points)
 
-class Car:
+class Car(Polygon):
     # TODO: this should extend sprite
     def __init__(self, center=None, angle=0, color=(0, 200, 0), speed=5):
+        Polygon.__init__(self, center, angle, color)
         self.width = 40
         self.length = 70
-        self.center = center if not center is None else np.array([80, 80], dtype='float64')
-        self.angle = angle
-        self.color = color
         self.speed = speed
         self.turn = 0
 
@@ -180,8 +178,7 @@ class Car:
         self.center += velocity
 
     def draw(self, surface):
-        points = rotate(self.shape, self.angle) + self.center
-        pygame.draw.polygon(surface, self.color, points)
+        Polygon.draw(self, surface)
         if DEBUG:
             direction = rotate(np.array([1, 0]), self.angle)
             velocity = self.speed * direction
@@ -189,12 +186,11 @@ class Car:
             frontCenter = self.center + 0.6 * self.length * direction
             pygame.draw.line(surface, (255, 0, 255), frontCenter, frontCenter + 10 * rotate(direction, self.turn * 20), 3)
 
-class FromRoad:
+class FromRoad(Polygon):
     # TODO: this should extend sprite
     def __init__(self, carList, color=(0, 0, 200)):
+        Polygon.__init__(self, np.array([500, 300], dtype='float64'), 10, color)
         self.carList = carList
-        self.start = np.array([500, 300], dtype='float64')
-        self.angle = 10
         self.length = 300
         self.speed = 7
         self.color = color
@@ -202,8 +198,8 @@ class FromRoad:
         self.spawnMax = 300
         self.spawnTick = np.random.randint(self.spawnMin, self.spawnMax+1)
         self.tickCount = 0
-        self.spawnPoint = self.start + rotate(np.array([-self.length, 0]), self.angle)
-        self.polygon = rotate(np.array([[0, -30], [0, 30], [-self.length, 30], [-self.length, -30]]), self.angle) + self.start
+        self.spawnPoint = self.center + rotate(np.array([-self.length, 0]), self.angle)
+        self.shape = np.array([[0, -30], [0, 30], [-self.length, 30], [-self.length, -30]])
 
     def update(self):
         self.tickCount += 1
@@ -213,28 +209,28 @@ class FromRoad:
             self.spawnTick = np.random.randint(self.spawnMin, self.spawnMax+1)
     
     def draw(self, surface):
-        pygame.draw.polygon(surface, self.color, self.polygon, 2)
+        points = self.getPoints()
+        pygame.draw.polygon(surface, self.color, points, 2)
     
     def spawn(self):
         # TODO: fix spawning/pushing bug?
         self.carList.append(Car(self.spawnPoint.copy(), self.angle, self.color, self.speed))
 
-class ToRoad:
+class ToRoad(Polygon):
     # TODO: this should extend sprite
     def __init__(self, carList, color=(0, 0, 200)):
+        Polygon.__init__(self, np.array([500, 500], dtype='float64'), -10, color)
         self.carList = carList
-        self.start = np.array([500, 300], dtype='float64')
-        self.angle = 10
         self.length = 300
         self.speed = 7
-        self.color = color
-        self.polygon = rotate(np.array([[0, -30], [0, 30], [-self.length, 30], [-self.length, -30]]), self.angle) + self.start
+        self.shape = np.array([[0, -30], [0, 30], [-self.length, 30], [-self.length, -30]])
 
     def update(self):
         pass
     
     def draw(self, surface):
-        pygame.draw.polygon(surface, self.color, self.polygon, 2)
+        points = self.getPoints()
+        pygame.draw.polygon(surface, self.color, points, 2)
 
 class IntersectionGame:
     def __init__(self):
@@ -243,7 +239,7 @@ class IntersectionGame:
         self.screen = pygame.display.set_mode(size)
         # TODO: this should be a sprite group
         self.cars = [Car(angle=80), Car(angle=100)]
-        self.roads = [FromRoad(self.cars, (0, 0, 200))]
+        self.roads = [FromRoad(self.cars, (0, 0, 200)), ToRoad(self.cars, (0, 200, 0))]
         self.selectedCar = None
         self.keys = {}
         self.mouse = [(0,0), 0, 0, 0, 0, 0, 0] #[pos, b1,b2,b3,b4,b5,b6]
