@@ -47,6 +47,20 @@ class Polygon:
         points = self.getPoints()
         return np.stack([points, np.roll(points, 1, axis=0)], axis=1)
 
+    def contains(self, point):       
+        edges = self.getEdges()
+        vecs1 = rotate(self.shape, self.angle)
+        for edge in edges:
+            vec = edge[1] - edge[0]
+            vec /= la.norm(vec)
+
+            projected1 = np.dot(vecs1, vec)
+            projDist = np.dot(point - self.center, vec)
+
+            if projDist > projected1.max() or projDist < projected1.min():
+                return False
+        return True
+
     # implemented the Separating Axis Theorem from here:
     # https://www.metanetsoftware.com/technique/tutorialA.html
     # *Note: Only really works on convex shapes and needs more effort to work with non-polygons
@@ -81,7 +95,7 @@ class Polygon:
 
     def draw(self, surface):
         points = self.getPoints()
-        pygame.draw.polygon(surface, self.color, points)
+        pygame.draw.polygon(surface, self.color, points, 2)
 
 class Car(Polygon):
     def __init__(self, center=None, angle=0, color=(0, 200, 0), speed=5):
@@ -90,6 +104,7 @@ class Car(Polygon):
         self.length = 70
         self.speed = speed
         self.turn = 0
+        self.selected = False
 
         self.ACC = 0.1
         self.BRAKE = 0.3
@@ -108,49 +123,9 @@ class Car(Polygon):
             [-0.2, -0.5]
         ]) * [self.length, self.width]
 
-    def contains(self, point):
-        # TODO: potentially redo this to utilize SAT like collision
-        point = np.array(point, dtype='float64')
-        point -= self.center
-        point = rotate(point, -self.angle)
-        point += pygame.math.Vector2(0.2 * self.length, 0.5 * self.width)
-        return point[0] > 0 and point[0] < self.width and point[1] > 0 and point[1] < self.length
-
     def getEdges(self):
         points = rotate(self.shape, self.angle) + self.center
         return np.stack([points, np.roll(points, 1, axis=0)], axis=1)
-
-    # implemented the Separating Axis Theorem from here:
-    # https://www.metanetsoftware.com/technique/tutorialA.html
-    # *Note: Only really works on convex shapes and needs more effort to work with non-polygons
-    def collides(self, o, surface=None):        
-        allEdges = np.concatenate((self.getEdges(), o.getEdges()))
-        vecs1 = rotate(self.shape, self.angle)
-        vecs2 = rotate(o.shape, o.angle)
-        for edge in allEdges:
-            vec = edge[1] - edge[0]
-            vec /= la.norm(vec)
-            orthoVec = np.array([vec[1], -vec[0]])
-
-            projected1 = np.dot(vecs1, vec)
-            projected2 = np.dot(vecs2, vec)
-            projDist = np.dot(o.center - self.center, vec)
-
-            # display stuff
-            if DEBUG and surface != None:
-                midCenter = (self.center + o.center) / 2
-                axisCenter = midCenter - 200 * orthoVec
-                axis1 = axisCenter - projDist / 2 * vec
-                axis2 = axisCenter + projDist / 2 * vec
-                # print(vec, vec)
-                pygame.draw.line(surface, (100, 100, 100), midCenter, axisCenter, 1)
-                pygame.draw.line(surface, (100, 100, 100), axis1, axis2, 1)
-                pygame.draw.line(surface, (100, 100, 200), axis1 + projected1.min() * vec, axis1 + projected1.max() * vec, 7)
-                pygame.draw.line(surface, (100, 0, 100), axis2 + projected2.min() * vec, axis2 + projected2.max() * vec, 3)
-
-            if projDist > projected1.max() - projected2.min() or projDist < projected1.min() - projected2.max():
-                return False
-        return True
     
     def update(self, keys=None):
         self.speed *= self.DRAG
@@ -178,7 +153,10 @@ class Car(Polygon):
         self.center += velocity
 
     def draw(self, surface):
-        Polygon.draw(self, surface)
+        points = self.getPoints()
+        pygame.draw.polygon(surface, self.color, points)
+        if self.selected:
+            pygame.draw.polygon(surface, (255, 255, 255), points, 2)
         if DEBUG:
             direction = rotate(np.array([1, 0]), self.angle)
             velocity = self.speed * direction
@@ -208,10 +186,6 @@ class FromRoad(Polygon):
             self.spawnTick = np.random.randint(self.spawnMin, self.spawnMax+1)
         return 0
     
-    def draw(self, surface):
-        points = self.getPoints()
-        pygame.draw.polygon(surface, self.color, points, 2)
-    
     def spawn(self):
         # TODO: fix spawning/pushing bug?
         self.carList.append(Car(self.spawnPoint.copy(), self.angle, self.color, self.speed))
@@ -231,12 +205,6 @@ class ToRoad(Polygon):
                 self.carList.remove(car)
                 total += 1
         return total
-                
-
-    
-    def draw(self, surface):
-        points = self.getPoints()
-        pygame.draw.polygon(surface, self.color, points, 2)
 
 class IntersectionGame:
     def __init__(self):
@@ -261,10 +229,13 @@ class IntersectionGame:
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     # self.mouse[event.button] = True
                     # self.mouse[0] = event.pos
-                    self.selectedCar = None
+                    if not self.selectedCar is None:
+                        self.selectedCar.selected = False
+                        self.selectedCar = None
                     for car in self.cars:
                         if car.contains(event.pos):
                             self.selectedCar = car
+                            self.selectedCar.selected = True
 
                 # elif event.type == pygame.MOUSEBUTTONUP:
                 #     self.mouse[event.button] = False
