@@ -47,7 +47,7 @@ class Polygon:
         points = self.getPoints()
         return np.stack([points, np.roll(points, 1, axis=0)], axis=1)
 
-    def contains(self, point):       
+    def containsPoint(self, point):       
         edges = self.getEdges()
         vecs1 = rotate(self.shape, self.angle)
         for edge in edges:
@@ -58,6 +58,13 @@ class Polygon:
             projDist = np.dot(point - self.center, vec)
 
             if projDist > projected1.max() or projDist < projected1.min():
+                return False
+        return True
+
+    # *Note: works only with convex polygons
+    def contains(self, o):
+        for point in o.getPoints():
+            if not self.containsPoint(point):
                 return False
         return True
 
@@ -201,7 +208,7 @@ class ToRoad(Polygon):
     def update(self):
         total = 0
         for car in self.carList:
-            if self.collides(car):
+            if self.contains(car):
                 self.carList.remove(car)
                 total += 1
         return total
@@ -233,7 +240,7 @@ class IntersectionGame:
                         self.selectedCar.selected = False
                         self.selectedCar = None
                     for car in self.cars:
-                        if car.contains(event.pos):
+                        if car.containsPoint(event.pos):
                             self.selectedCar = car
                             self.selectedCar.selected = True
 
