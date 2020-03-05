@@ -239,10 +239,11 @@ class IntersectionGame:
                     if not self.selectedCar is None:
                         self.selectedCar.selected = False
                         self.selectedCar = None
-                    for car in self.cars:
+                    for car in reversed(self.cars):
                         if car.containsPoint(event.pos):
                             self.selectedCar = car
                             self.selectedCar.selected = True
+                            break
 
                 # elif event.type == pygame.MOUSEBUTTONUP:
                 #     self.mouse[event.button] = False
